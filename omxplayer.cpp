@@ -130,6 +130,14 @@ bool              m_gen_log             = false;
 bool              m_loop                = false;
 int               m_layer               = 0;
 
+
+  bool                  m_stats               = false;
+  bool                  m_refresh             = false;
+  TV_DISPLAY_STATE_T   tv_state;
+  COMXCore              g_OMX;
+  CRBP                  g_RBP;
+
+void do_exit();
 enum{ERROR=-1,SUCCESS,ONEBYTE};
 
 enum Controles{
@@ -584,10 +592,11 @@ int main(int argc, char *argv[])
   signal(SIGFPE, sig_handler);
   signal(SIGINT, sig_handler);
 
-    TcpCliente cliente;
-    cliente.conn("192.168.0.150" , 30666);
-    cliente.send_data("/visor pantalla1");
-    int n;
+  TcpCliente cliente;
+  int n;
+  cliente.conn("192.168.0.150" , 30666);
+  cliente.send_data("/visor pantalla1");
+
   bool                  m_send_eos            = false;
   bool                  m_packet_after_seek   = false;
   bool                  m_seek_flush          = false;
@@ -595,13 +604,13 @@ int main(int argc, char *argv[])
   std::string           m_filename;
   double                m_incr                = 0;
   double                m_loop_from           = 0;
-  CRBP                  g_RBP;
-  COMXCore              g_OMX;
-  bool                  m_stats               = false;
+//  CRBP                  g_RBP;
+//  COMXCore              g_OMX;
+//  bool                  m_stats               = false;
   bool                  m_dump_format         = false;
   bool                  m_dump_format_exit    = false;
   FORMAT_3D_T           m_3d                  = CONF_FLAGS_FORMAT_NONE;
-  bool                  m_refresh             = false;
+//  bool                  m_refresh             = false;
   double                startpts              = 0;
   CRect                 DestRect              = {0,0,0,0};
   bool                  m_blank_background    = false;
@@ -616,7 +625,7 @@ int main(int argc, char *argv[])
   float m_fps            = 0.0f; // unset
   bool m_live            = false; // set to true for live tv or vod for low buffering
   enum PCMLayout m_layout = PCM_LAYOUT_2_0;
-  TV_DISPLAY_STATE_T   tv_state;
+  //TV_DISPLAY_STATE_T   tv_state;
   double last_seek_pos = 0;
   bool idle = false;
 
@@ -946,6 +955,10 @@ int main(int argc, char *argv[])
     return 0;
   }
 //Lee el archivo por primera vez
+
+while(1)
+{
+
   m_filename = argv[optind];
 
   printf("%s\n",m_filename.c_str()); //Imprimo el nombre del archivo por el tema del path
@@ -1042,10 +1055,16 @@ int main(int argc, char *argv[])
   m_thread_player = true;
 
   if(!m_omx_reader.Open(m_filename.c_str(), m_dump_format, m_live, m_timeout))
-    goto do_exit;
+  {
+    do_exit();
+    //return 1;
+  }
 
   if (m_dump_format_exit)
-    goto do_exit;
+  {
+      do_exit();
+      //return 1;
+  }
 
   m_has_video     = m_omx_reader.VideoStreamCount();
   m_has_audio     = m_audio_index_use < 0 ? false : m_omx_reader.AudioStreamCount();
@@ -1064,6 +1083,7 @@ int main(int argc, char *argv[])
   else if(m_filename.find("3DTAB") != string::npos || m_filename.find("HTAB") != string::npos)
     m_3d = CONF_FLAGS_FORMAT_TB;
 
+
   // 3d modes don't work without switch hdmi mode
   if (m_3d != CONF_FLAGS_FORMAT_NONE || m_NativeDeinterlace)
     m_refresh = true;
@@ -1072,11 +1092,18 @@ int main(int argc, char *argv[])
   if ((m_refresh || m_NativeDeinterlace) && !m_no_hdmi_clock_sync)
     m_hdmi_clock_sync = true;
 
+
   if(!m_av_clock->OMXInitialize())
-    goto do_exit;
+  {
+    do_exit();
+    //return 1;
+  }
 
   if(m_hdmi_clock_sync && !m_av_clock->HDMIClockSync())
-    goto do_exit;
+  {
+    do_exit();
+    //return 1;
+  }
 
   m_av_clock->OMXStateIdle();
   m_av_clock->OMXStop();
@@ -1115,7 +1142,10 @@ int main(int argc, char *argv[])
     m_hints_video.orientation = m_orientation;
   if(m_has_video && !m_player_video.Open(m_hints_video, m_av_clock, DestRect, m_Deinterlace ? VS_DEINTERLACEMODE_FORCE:m_NoDeinterlace ? VS_DEINTERLACEMODE_OFF:VS_DEINTERLACEMODE_AUTO,
                                          m_anaglyph, m_hdmi_clock_sync, m_thread_player, m_display_aspect, m_layer, video_queue_size, video_fifo_size))
-    goto do_exit;
+                                         {
+                                             do_exit();
+                                                //return 1;
+                                         }
 
   if(m_has_subtitle || m_osd)
   {
@@ -1124,7 +1154,8 @@ int main(int argc, char *argv[])
        !ReadSrt(m_external_subtitles_path, external_subtitles))
     {
        puts("Unable to read the subtitle file.");
-       goto do_exit;
+       do_exit();
+       //return 1;
     }
 
     if(!m_player_subtitles.Open(m_omx_reader.SubtitleStreamCount(),
@@ -1136,8 +1167,12 @@ int main(int argc, char *argv[])
                                 m_ghost_box,
                                 m_subtitle_lines,
                                 m_layer + 1,
-                                m_av_clock))
-      goto do_exit;
+                                m_av_clock)){
+
+      do_exit();
+      //return 1;
+      }
+
   }
 
   if(m_has_subtitle)
@@ -1156,7 +1191,10 @@ int main(int argc, char *argv[])
       m_player_subtitles.SetVisible(false);
   }
 
+
+
   m_omx_reader.GetHints(OMXSTREAM_AUDIO, m_hints_audio);
+
 
   if (deviceString == "")
   {
@@ -1165,6 +1203,7 @@ int main(int argc, char *argv[])
     else
       deviceString = "omx:local";
   }
+
 
   if ((m_hints_audio.codec == CODEC_ID_AC3 || m_hints_audio.codec == CODEC_ID_EAC3) &&
       m_BcmHost.vc_tv_hdmi_audio_supported(EDID_AudioFormat_eAC3, 2, EDID_AudioSampleRate_e44KHz, EDID_AudioSampleSize_16bit ) != 0)
@@ -1176,7 +1215,11 @@ int main(int argc, char *argv[])
   if(m_has_audio && !m_player_audio.Open(m_hints_audio, m_av_clock, &m_omx_reader, deviceString,
                                          m_passthrough, m_use_hw_audio,
                                          m_boost_on_downmix, m_thread_player, m_live, m_layout, audio_queue_size, audio_fifo_size))
-    goto do_exit;
+                                         {
+                                             do_exit();
+                                             //return 1;
+                                         }
+
 
   if(m_has_audio)
   {
@@ -1196,8 +1239,13 @@ int main(int argc, char *argv[])
 
   while(!m_stop)
   {
+
+
     if(g_abort)
-      goto do_exit;
+    {
+        do_exit();
+        //return 1;
+    }
 
     double now = m_av_clock->GetAbsoluteClock();
     bool update = false;
@@ -1254,7 +1302,8 @@ int main(int argc, char *argv[])
         break;
     case stopVideo:
         m_stop = true;
-        goto do_exit;
+        //do_exit();
+        //return 1;
         break;
     }
     //
@@ -1450,7 +1499,8 @@ int main(int argc, char *argv[])
         break;
       case KeyConfig::ACTION_EXIT:
         m_stop = true;
-        goto do_exit;
+        //do_exit();
+        //return 1;
         break;
       case KeyConfig::ACTION_SEEK_BACK_SMALL:
         if(m_omx_reader.CanSeek()) m_incr = -30.0;
@@ -1523,7 +1573,10 @@ int main(int argc, char *argv[])
         {
           idle = false;
           if(!m_omx_reader.Open(m_filename.c_str(), m_dump_format, true))
-            goto do_exit;
+          {
+              do_exit();
+              //return 1;
+          }
         }
         m_new_win_pos = true;
         m_seek_flush = true;
@@ -1595,7 +1648,10 @@ int main(int argc, char *argv[])
 
       if(m_has_video && !m_player_video.Open(m_hints_video, m_av_clock, DestRect, m_Deinterlace ? VS_DEINTERLACEMODE_FORCE:m_NoDeinterlace ? VS_DEINTERLACEMODE_OFF:VS_DEINTERLACEMODE_AUTO,
                                          m_anaglyph, m_hdmi_clock_sync, m_thread_player, m_display_aspect, m_layer, video_queue_size, video_fifo_size))
-        goto do_exit;
+                                         {
+                                             do_exit();
+                                             //return 1;
+                                         }
 
       CLog::Log(LOGDEBUG, "Seeked %.0f %.0f %.0f\n", DVD_MSEC_TO_TIME(seek_pos), startpts, m_av_clock->OMXMediaTime());
 
@@ -1631,7 +1687,8 @@ int main(int argc, char *argv[])
     if(m_player_audio.Error())
     {
       printf("audio player error. emergency exit!!!\n");
-      goto do_exit;
+      do_exit();
+      //return 1;
     }
 
     if (update)
@@ -1843,9 +1900,15 @@ int main(int argc, char *argv[])
       else
         OMXClock::OMXSleep(10);
     }
-  }
 
-do_exit:
+  }
+    do_exit();
+
+}
+    return 1;
+}
+void do_exit()
+{
   if (m_stats)
     printf("\n");
 
@@ -1894,5 +1957,5 @@ do_exit:
   g_RBP.Deinitialize();
 
   printf("have a nice day ;)\n");
-  return 1;
+
 }
