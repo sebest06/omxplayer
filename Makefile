@@ -36,6 +36,7 @@ SRC=linux/XMemUtils.cpp \
 		OMXControl.cpp \
 		Keyboard.cpp \
 		omxplayer.cpp \
+		tcpcliente.cpp \
 
 OBJS+=$(filter %.o,$(SRC:.cpp=.o))
 
