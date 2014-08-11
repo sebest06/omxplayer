@@ -132,11 +132,16 @@ int               m_layer               = 0;
   COMXCore              g_OMX;
   CRBP                  g_RBP;
 
+  std::string           m_filename;
+  bool m_loopear = false;
+  bool m_loadOther = false;
+
 void do_exit();
 enum{ERROR=-1,SUCCESS,ONEBYTE};
 
 enum Controles{
     playVideo = 1,
+    loopVideo = 2,
     stopVideo = 4,
     pauseVideo = 8,
 };
@@ -448,11 +453,12 @@ int main(int argc, char *argv[])
   cliente.conn(argv[1] , 30666);
   cliente.send_data("/visor pantalla1");
 
+    m_loopear = false;
   bool                  m_send_eos            = false;
   bool                  m_packet_after_seek   = false;
   bool                  m_seek_flush          = false;
   bool                  m_new_win_pos         = false;
-  std::string           m_filename;
+
   double                m_incr                = 0;
   double                m_loop_from           = 0;
   bool                  m_dump_format         = false;
@@ -526,6 +532,8 @@ bool m_audio_extension;
   if (m_orientation >= 0)
     m_hints_video.orientation = m_orientation;
 
+  m_filename = "";//argv[optind];
+
 while(1)
 {
 
@@ -563,7 +571,6 @@ m_latency = 0.0f;
 
     inicializate();
 
-  m_filename = "";//argv[optind];
 
     memset(buffer, 0, sizeof buffer);
     n = (cliente.recibir(buffer,100));
@@ -572,8 +579,15 @@ m_latency = 0.0f;
         //m_filename = "../../videos/Micayala_DivX1080p_ASP.divx";
         if(buffer[0]==playVideo)
         {
-        m_filename = buffer + 1;
-        m_filename = m_filename.substr(0,n-1);
+            m_filename = buffer + 1;
+            m_filename = m_filename.substr(0,n-1);
+            m_loopear  = false;
+        }
+        if(buffer[0]==loopVideo)
+        {
+            m_filename = buffer + 1;
+            m_filename = m_filename.substr(0,n-1);
+            m_loopear  = true;
         }
     }
     if(n==0){return 1;}
@@ -746,9 +760,24 @@ if(m_filename != "")
         }
         break;
     case stopVideo:
+        m_loopear  = false;
         m_stop = true;
         //do_exit();
         //return 1;
+        break;
+    case playVideo:
+        m_loadOther = true;
+        m_filename = buffer + 1;
+        m_filename = m_filename.substr(0,n-1);
+        m_loopear  = false;
+        m_stop = true;
+        break;
+    case loopVideo:
+        m_loadOther = true;
+        m_filename = buffer + 1;
+        m_filename = m_filename.substr(0,n-1);
+        m_loopear  = true;
+        m_stop = true;
         break;
     }
         //
@@ -976,7 +1005,6 @@ if(m_filename != "")
   }
 
     do_exit();
-    m_filename = "";
 }
 usleep(1000);
 }
@@ -992,6 +1020,13 @@ void do_exit()
     unsigned t = (unsigned)(m_av_clock->OMXMediaTime()*1e-6);
     printf("Stopped at: %02d:%02d:%02d\n", (t/3600), (t/60)%60, t%60);
   }
+
+  if(!m_loopear && !m_loadOther)
+  {
+      m_filename = "";
+  }
+
+  m_loadOther = false;
 
 /*  if (m_NativeDeinterlace)
   {
